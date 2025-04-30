@@ -33,11 +33,11 @@ export default class HomeComponent implements OnInit {
       { property: 'og:description', content: 'Transforma tu operación agrícola y ganadera con la vanguardia tecnológica de EPROVET.' },
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: 'https://www.eprovet.com' }, // Ajusta esta URL a tu dominio real
-      { property: 'og:image', content: 'https://www.eprovet.com/assets/images/hero.jpg' }, // Ajusta esta URL a tu imagen real
+      { property: 'og:image', content: 'https://www.eprovet.com/logo.jpeg' }, // Ajusta esta URL a tu imagen real
       { name: 'twitter:card', content: 'summary_large_image' },
       { name: 'twitter:title', content: 'EPROVET - Tecnología Agrícola y Ganadera de Vanguardia' },
       { name: 'twitter:description', content: 'Transforma tu operación agrícola y ganadera con la vanguardia tecnológica de EPROVET.' },
-      { name: 'twitter:image', content: 'https://www.eprovet.com/assets/images/hero.jpg' } // Ajusta esta URL a tu imagen real
+      { name: 'twitter:image', content: 'https://www.eprovet.com/logo.jpeg' } // Ajusta esta URL a tu imagen real
     ]);
   }
 }
