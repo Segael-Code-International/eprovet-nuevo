@@ -1,39 +1,40 @@
 <footer class="bg-secondary-50 mt-16 lg:mt-32  dark:bg-secondary-950">
-    <div class="w-full max-w-screen-xl mx-auto p-4 md:py-8">
+    <hr class="my-4 border-gray-400 dark:border-secondary-600 sm:mx-auto" />
+    <div class="w-full max-w-screen-xl mx-auto p-4 md:py-4">
         <div class="flex flex-col justify-center content-center gap-10">
             <div class=" sm:flex sm:items-center sm:justify-between">
-                <a href="/" class="flex items-center mb-4 sm:mb-0 space-x-3 rtl:space-x-reverse">
+                <a routerLink="/" class="flex items-center mb-4 sm:mb-0 space-x-3 rtl:space-x-reverse">
                     <img src="../../../assets/images/logo-eprovet.jpeg" class="h-6" alt="Logo de EPROVET" />
                 </a>
-                <ul class="flex flex-wrap items-center mb-6 text-sm font-medium  content-center  text-gray-500 sm:mb-0">
+                <ul class="flex flex-wrap items-center mb-6 text-sm font-medium  content-center sm:mb-0">
                     <li>
-                        <a href="/" class="hover:underline me-4 md:me-6 dark:text-secondary-200">Inicio</a>
+                        <a routerLink="/" class="hover:underline me-4 md:me-6 hover:text-primary">Inicio</a>
                     </li>
                     <li>
-                        <a href="#productos" class="hover:underline me-4 md:me-6 dark:text-secondary-200">Productos</a>
+                        <a routerLink="/products" class="hover:underline me-4 md:me-6 hover:text-primary">Productos</a>
                     </li>
                     <li>
-                        <a href="#nosotros" class="hover:underline me-4 md:me-6 dark:text-secondary-200">Nosotros</a>
+                        <a routerLink="/about" class="hover:underline me-4 md:me-6 hover:text-primary">Nosotros</a>
                     </li>
                     <li>
-                        <a href="#contacto" class="hover:underline me-4 md:me-6 dark:text-secondary-200">Contacto</a>
+                        <a routerLink="/contact" class="hover:underline me-4 md:me-6 hover:text-primary">Contacto</a>
                     </li>
                 </ul>
             </div>
             <div class="flex flex-row justify-center content-center gap-4">
                 <a href="https://www.instagram.com/eprovetperu/" target="_blank">
-                    <i class="pi pi-instagram text-2xl"></i>
+                    <i class="pi pi-instagram text-2xl hover:text-pink-500"></i>
                 </a>
                 <a href="https://www.facebook.com/profile.php?id=61560774496984" target="_blank">
-                    <i class="pi pi-facebook text-2xl"></i>
+                    <i class="pi pi-facebook text-2xl hover:text-blue-600"></i>
                 </a>
                 <a href="https://www.tiktok.com/@eprovetperu" target="_blank">
-                    <i class="pi pi-tiktok text-2xl"></i>
+                    <i class="pi pi-tiktok text-2xl hover:text-sky-500"></i>
                 </a>
             </div>
         </div>
-        <hr class="my-6 border-gray-300 dark:border-secondary-600 sm:mx-auto lg:my-8" />
-        <span class="block text-sm text-gray-700 dark:text-secondary-200 sm:text-center ">Derechos de Autor © 2025
+
+        <span class="block text-sm sm:text-center mt-8">Derechos de Autor © 2025
             EPROVET. Todos los derechos reservados.</span>
     </div>
 </footer>

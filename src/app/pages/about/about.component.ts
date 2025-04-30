@@ -1,9 +1,30 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Title, Meta } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-about',
-  imports: [],
+  imports: [CommonModule],
   templateUrl: './about.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export default class AboutComponent { }
+export default class AboutComponent implements OnInit {
+  constructor(
+    private titleService: Title,
+    private metaService: Meta
+  ) {}
+
+  ngOnInit(): void {
+    // Configuración para SEO
+    this.titleService.setTitle('Sobre Nosotros | EPROVET - Soluciones Tecnológicas para Agricultura y Ganadería');
+    
+    this.metaService.addTags([
+      { name: 'description', content: 'Conoce nuestra misión y visión en EPROVET. Ofrecemos soluciones tecnológicas avanzadas para mejorar la productividad en agricultura y ganadería.' },
+      { name: 'keywords', content: 'EPROVET, agricultura, ganadería, tecnología agropecuaria, soluciones tecnológicas, misión, visión' },
+      { name: 'robots', content: 'index, follow' },
+      { property: 'og:title', content: 'Sobre Nosotros | EPROVET' },
+      { property: 'og:description', content: 'Soluciones tecnológicas avanzadas para agricultura y ganadería.' },
+      { property: 'og:type', content: 'website' }
+    ]);
+  }
+}

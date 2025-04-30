@@ -1,18 +1,20 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, PLATFORM_ID, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit, signal, PLATFORM_ID, Inject } from '@angular/core';
 import { ProductService } from '../../services/product.service';
 import { Producto } from '../../interfaces/producto.interfaces';
 import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
-import { CurrencyPipe, isPlatformBrowser, SlicePipe, UpperCasePipe } from '@angular/common';
+import { CurrencyPipe, SlicePipe, UpperCasePipe, DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { SkeletonModule } from 'primeng/skeleton';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
-import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
+import { InputTextModule } from 'primeng/inputtext';
+import { FormsModule } from '@angular/forms';
+import { FloatLabel } from 'primeng/floatlabel';
+import { Meta, Title } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-products',
-  standalone: true,
   imports: [
     CardModule,
     ButtonModule,
@@ -21,99 +23,305 @@ import { RouterLink } from '@angular/router';
     SlicePipe,
     CurrencyPipe,
     ToastModule,
-    RouterLink
+    RouterLink,
+    FormsModule,
+    InputTextModule,
+    FloatLabel
   ],
   providers: [MessageService],
   templateUrl: './products.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export default class ProductsComponent implements OnInit {
+
+export default class ProductsComponent implements OnInit, OnDestroy {
   private productService = inject(ProductService);
   private messageService = inject(MessageService);
-   private http = inject(HttpClient);
+  private metaService = inject(Meta);
+  private titleService = inject(Title);
+  private document = inject(DOCUMENT);
+
+  // Inject PLATFORM_ID to check if we're running in browser or server
   private platformId = inject(PLATFORM_ID);
+
   id_marca = '671ac5cdc9c80b4d0388d787';
 
   // Usar señales para los estados
   productos = signal<Producto[]>([]);
+  productosFiltrados = signal<Producto[]>([]);
   cargando = signal(true);
   placeholderItems = signal([1, 2, 3, 4, 5, 6]);
-  pdfEnDescarga = signal<Record<string, boolean>>({});
+
+  value: string = '';
 
   ngOnInit(): void {
+    this.cargarProductos();
+    this.updateMetaTags();
+  }
+
+  // Método para actualizar meta tags para un producto específico (para usar en página de detalle)
+  updateProductMetaTags(producto: Producto): void {
+    if (!producto) return;
+
+    // Título específico del producto
+    this.titleService.setTitle(`${producto.nombre} | Eprovet`);
+
+    // Meta tags básicos
+    this.metaService.updateTag({ name: 'description', content: producto.descripcion || `${producto.nombre} - Producto veterinario de alta calidad` });
+
+    // URL canónica para evitar contenido duplicado - acceder a URL de forma segura
+    const currentUrl = this.getAbsoluteUrl();
+    this.metaService.updateTag({ rel: 'canonical', href: currentUrl });
+
+    // Open Graph
+    this.metaService.updateTag({ property: 'og:title', content: producto.nombre });
+    this.metaService.updateTag({ property: 'og:description', content: producto.descripcion || `${producto.nombre} - Detalles del producto` });
+    this.metaService.updateTag({ property: 'og:url', content: currentUrl });
+    this.metaService.updateTag({ property: 'og:type', content: 'product' });
+    this.metaService.updateTag({ property: 'og:site_name', content: 'Eprovet' });
+
+    // Si hay imágenes disponibles, usar la primera para og:image
+    if (producto.galeria && producto.galeria.length > 0) {
+      this.metaService.updateTag({ property: 'og:image', content: producto.galeria[0] });
+    }
+
+    // Twitter Card
+    this.metaService.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+    this.metaService.updateTag({ name: 'twitter:title', content: producto.nombre });
+    this.metaService.updateTag({ name: 'twitter:description', content: producto.descripcion || `${producto.nombre} - Producto veterinario` });
+
+    // Keywords específicos del producto
+    this.metaService.updateTag({
+      name: 'keywords',
+      content: `${producto.nombre}, ${producto.codigo}, productos veterinarios, ${producto.unidad_medida || ''}`
+    });
+
+    // Schema.org Product JSON-LD - Solo en el navegador
+    if (isPlatformBrowser(this.platformId)) {
+      this.addProductSchema(producto);
+    }
+  }
+
+  private updateMetaTags(): void {
+    // Título general de la página
+    this.titleService.setTitle(`Eprovet | Catálogo de Productos`);
+
+    // Obtenemos los nombres de los productos para keywords si hay productos cargados
+    let productNames = '';
+    const productosActuales = this.productos();
+    if (productosActuales.length > 0) {
+      // Extraer los primeros 5 nombres de productos para keywords
+      productNames = productosActuales
+        .slice(0, 5)
+        .map(p => p.nombre)
+        .join(', ');
+    }
+
+    // Meta tags para SEO
+    this.metaService.updateTag({ name: 'description', content: 'Catálogo de productos veterinarios de alta calidad. Encuentra medicamentos, equipos y suministros para el cuidado animal.' });
+    this.metaService.updateTag({ property: 'og:title', content: 'Eprovet | Productos Veterinarios' });
+    this.metaService.updateTag({ property: 'og:description', content: 'Explora nuestra selección de productos veterinarios. Calidad y confianza para el cuidado de animales.' });
+
+    // URL canónica para evitar contenido duplicado - acceder a URL de forma segura
+    const currentUrl = this.getAbsoluteUrl();
+    this.metaService.updateTag({ rel: 'canonical', href: currentUrl });
+    this.metaService.updateTag({ property: 'og:url', content: currentUrl });
+
+    // Si hay productos con imágenes, usar la primera imagen disponible para og:image
+    if (productosActuales.length > 0 && productosActuales[0].galeria && productosActuales[0].galeria.length > 0) {
+      this.metaService.updateTag({ property: 'og:image', content: productosActuales[0].galeria[0] });
+    }
+
+    // Metadatos adicionales
+    this.metaService.updateTag({ property: 'og:type', content: 'website' });
+    this.metaService.updateTag({ property: 'og:site_name', content: 'Eprovet' });
+    this.metaService.updateTag({ name: 'keywords', content: `productos veterinarios, suministros veterinarios, ${productNames}` });
+    this.metaService.updateTag({ name: 'robots', content: 'index, follow' });
+
+    // Twitter Card
+    this.metaService.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+    this.metaService.updateTag({ name: 'twitter:title', content: 'Eprovet | Productos Veterinarios' });
+    this.metaService.updateTag({ name: 'twitter:description', content: 'Explora nuestra amplia selección de productos veterinarios de calidad' });
+
+    // Meta tags para móviles
+    this.metaService.updateTag({ name: 'viewport', content: 'width=device-width, initial-scale=1' });
+
+    // Agregamos también datos estructurados para la lista de productos (ItemList) - solo en navegador
+    if (isPlatformBrowser(this.platformId)) {
+      this.addProductListSchema();
+    }
+  }
+
+  // Helper method to get the absolute URL safely (works in browser and server)
+  private getAbsoluteUrl(): string {
+    if (isPlatformBrowser(this.platformId)) {
+      return window.location.href;
+    } else {
+      // For server rendering, provide a fallback URL or use request info if available
+      // This is a simple fallback, you might want to inject a more sophisticated solution
+      return 'https://yourdomain.com/productos';
+    }
+  }
+
+  // Helper method to get origin part of URL safely
+  private getOrigin(): string {
+    if (isPlatformBrowser(this.platformId)) {
+      return window.location.origin;
+    } else {
+      // For server rendering, provide a fallback
+      return 'https://yourdomain.com';
+    }
+  }
+
+  // Método para agregar datos estructurados para la lista de productos
+  private addProductListSchema(): void {
+    // Esta función solo debe ejecutarse en el navegador
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    // Eliminar cualquier script ld+json existente para evitar duplicados
+    this.removeExistingLdJson();
+
+    const productosActuales = this.productosFiltrados();
+
+    if (productosActuales.length === 0) return;
+
+    // Crear un ItemList de productos para mejorar la visibilidad en búsquedas
+    const itemListElements = productosActuales.map((producto, index) => {
+      return {
+        '@type': 'ListItem',
+        'position': index + 1,
+        'item': {
+          '@type': 'Product',
+          'name': producto.nombre,
+          'description': producto.descripcion,
+          'sku': producto.codigo,
+          'image': producto.galeria && producto.galeria.length > 0 ? producto.galeria[0] : undefined,
+          'url': `${this.getOrigin()}/producto/${producto.slug || producto._id}`
+        }
+      };
+    });
+
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      'itemListElement': itemListElements
+    };
+
+    // Crear un elemento script con el JSON-LD
+    const script = this.document.createElement('script');
+    script.type = 'application/ld+json';
+    script.text = JSON.stringify(schema);
+
+    // Agregar el script al head del documento
+    this.document.head.appendChild(script);
+  }
+
+  cargarProductos(): void {
     this.productService.obtener_productos(this.id_marca).subscribe({
       next: (res) => {
         this.productos.set(res.data);
+        this.productosFiltrados.set(res.data);
         this.cargando.set(false);
       },
-      error: () => {
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudieron cargar los productos'
+        });
         this.cargando.set(false);
       }
     });
   }
 
-  descargarFichaTecnica(producto: Producto): void {
-    // Comprobamos si estamos en el navegador
-    if (!isPlatformBrowser(this.platformId)) {
-      return; // No hacer nada en SSR
-    }
-
-    // Comprobar si el producto tiene URL de ficha técnica
-    if (!producto.ficha_tecnica) {
-      this.messageService.add({
-        severity: 'error',
-        summary: 'Error',
-        detail: 'No hay ficha técnica disponible para este producto'
-      });
+  buscarProducto(): void {
+    if (!this.value || this.value.trim() === '') {
+      // Si no hay texto de búsqueda, mostrar todos los productos
+      this.productosFiltrados.set(this.productos());
       return;
     }
 
-    // Actualizar estado de descarga
-    const pdfEnDescargaActual = { ...this.pdfEnDescarga() };
-    pdfEnDescargaActual[producto._id] = true;
-    this.pdfEnDescarga.set(pdfEnDescargaActual);
+    const busqueda = this.value.toLowerCase().trim();
 
-    // Descargar el PDF utilizando Blob
-    this.http.get(producto.ficha_tecnica, { responseType: 'blob' })
-      .subscribe({
-        next: (blob: Blob) => {
-          // Crear URL para el blob
-          const url = window.URL.createObjectURL(blob);
+    // Filtrar productos que coincidan por código o nombre
+    const filtrados = this.productos().filter(producto =>
+      producto.codigo.toLowerCase().includes(busqueda) ||
+      producto.nombre.toLowerCase().includes(busqueda)
+    );
 
-          // Crear un elemento <a> para la descarga
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `Ficha-Tecnica-${producto.codigo}.pdf`;
-          link.click();
+    this.productosFiltrados.set(filtrados);
 
-          // Liberar el objeto URL
-          window.URL.revokeObjectURL(url);
-
-          // Actualizar estado de descarga
-          const pdfEnDescargaActualizado = { ...this.pdfEnDescarga() };
-          pdfEnDescargaActualizado[producto._id] = false;
-          this.pdfEnDescarga.set(pdfEnDescargaActualizado);
-
-          this.messageService.add({
-            severity: 'success',
-            summary: 'Éxito',
-            detail: 'Ficha técnica descargada correctamente'
-          });
-        },
-        error: (error) => {
-          console.error('Error al descargar PDF:', error);
-
-          // Actualizar estado de descarga
-          const pdfEnDescargaActualizado = { ...this.pdfEnDescarga() };
-          pdfEnDescargaActualizado[producto._id] = false;
-          this.pdfEnDescarga.set(pdfEnDescargaActualizado);
-
-          this.messageService.add({
-            severity: 'error',
-            summary: 'Error',
-            detail: 'No se pudo descargar la ficha técnica'
-          });
-        }
+    // Opcional: Mostrar mensaje si no hay resultados
+    if (filtrados.length === 0 && !this.cargando()) {
+      this.messageService.add({
+        severity: 'info',
+        summary: 'Búsqueda',
+        detail: 'No se encontraron productos para tu búsqueda'
       });
+    }
+  }
+
+  // Método para agregar datos estructurados Schema.org para productos
+  private addProductSchema(producto: Producto): void {
+    // Esta función solo debe ejecutarse en el navegador
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    // Eliminar cualquier script ld+json existente para evitar duplicados
+    this.removeExistingLdJson();
+
+    // Crear el esquema de datos estructurados para el producto
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: producto.nombre,
+      description: producto.descripcion,
+      sku: producto.codigo,
+      mpn: producto.codigo,
+      brand: {
+        '@type': 'Brand',
+        name: 'Eprovet'
+      },
+      offers: {
+        '@type': 'Offer',
+        price: producto.precio,
+        priceCurrency: 'USD',
+        availability: producto.estado === 1 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        url: this.getAbsoluteUrl()
+      },
+      image: [''],
+    };
+
+    // Si hay imágenes disponibles, agregarlas al esquema
+    if (producto.galeria && producto.galeria.length > 0) {
+      schema['image'] = producto.galeria;
+    }
+
+    // Crear un elemento script con el JSON-LD
+    const script = this.document.createElement('script');
+    script.type = 'application/ld+json';
+    script.text = JSON.stringify(schema);
+
+    // Agregar el script al head del documento
+    this.document.head.appendChild(script);
+  }
+
+  // Método para eliminar cualquier script ld+json existente
+  private removeExistingLdJson(): void {
+    // Esta función solo debe ejecutarse en el navegador
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    const existingScripts = this.document.querySelectorAll('script[type="application/ld+json"]');
+    existingScripts.forEach(script => script.remove());
+  }
+
+  // Método para manejar cambios en el input (puedes usar este en lugar de ngModelChange)
+  onInputChange(): void {
+    this.buscarProducto();
+  }
+
+  ngOnDestroy(): void {
+    // Limpiar los scripts de ld+json cuando el componente se destruye - solo en navegador
+    if (isPlatformBrowser(this.platformId)) {
+      this.removeExistingLdJson();
+    }
   }
 }
