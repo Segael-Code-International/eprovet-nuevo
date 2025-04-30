@@ -6,6 +6,7 @@ import { Ripple } from 'primeng/ripple';
 import { AsyncPipe } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { ThemeService } from '../../services/theme.service';
+import { HideHeaderDirective } from '../../directives/hideHeader.directive';
 
 @Component({
   selector: 'app-header',
@@ -15,7 +16,8 @@ import { ThemeService } from '../../services/theme.service';
     AsyncPipe,
     Card,
     RouterLink,
-    RouterLinkActive
+    RouterLinkActive,
+    HideHeaderDirective
   ],
   templateUrl: './header.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
