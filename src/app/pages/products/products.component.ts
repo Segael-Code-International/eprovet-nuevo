@@ -96,6 +96,7 @@ export default class ProductsComponent implements OnInit, OnDestroy {
       if (params['categoria']) {
         // Si hay un ID de categoría en la URL, establecerlo como seleccionado
         this.categoriaFilterService.setCategoria(params['categoria']);
+        this.currentPage = 1;
       }
     });
 
@@ -104,7 +105,7 @@ export default class ProductsComponent implements OnInit, OnDestroy {
   }
 
   get totalPages(): number {
-    return Math.ceil(this.productos().length / this.pageSize);
+    return Math.ceil(this.productosFiltrados().length / this.pageSize);
   }
 
   // Navigation
@@ -305,6 +306,7 @@ export default class ProductsComponent implements OnInit, OnDestroy {
 
   seleccionarCategoria(id_categoria: string): void {
     // Obtener array actual de categorías seleccionadas
+    this.currentPage = 1;
     const categoriasActuales = [...this.categorias_select()];
 
     // Verificar si la categoría ya está seleccionada
@@ -328,6 +330,7 @@ export default class ProductsComponent implements OnInit, OnDestroy {
 
   seleccionarTodas(): void {
     // Limpiar categorías seleccionadas
+    this.currentPage = 1;
     this.categorias_select.set([]);
 
     // Mostrar todos los productos
