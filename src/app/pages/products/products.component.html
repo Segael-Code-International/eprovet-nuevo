@@ -9,7 +9,15 @@
         </p-floatLabel>
     </div>
 
+
     @if (cargando()) {
+    <div class="flex flex-wrap justify-center py-4">
+        <p-skeleton height="38px" width="80px" styleClass="m-2 rounded-3"></p-skeleton>
+        <p-skeleton height="38px" width="110px" styleClass="m-2 rounded-3"></p-skeleton>
+        <p-skeleton height="38px" width="160px" styleClass="m-2 rounded-3"></p-skeleton>
+        <p-skeleton height="38px" width="140px" styleClass="m-2 rounded-3"></p-skeleton>
+    </div>
+
     <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
         @for (item of placeholderItems(); track $index) {
         <div class="p-4">
@@ -50,12 +58,28 @@
 
     <!-- Cuando ya cargó los productos -->
     @if (!cargando()) {
+
+    <div class="flex flex-wrap justify-center py-4">
+        <!-- Tag "Todas" -->
+        <p-tag icon="pi pi-objects-column me-1" class="m-2 cursor-pointer"
+            [severity]="categorias_select().length === 0 ? 'success' : 'secondary'" value="Todas"
+            (click)="seleccionarTodas()" />
+
+        <!-- Tags de categorías -->
+        @for (categoria of categorias(); track categoria._id) {
+        <p-tag [icon]="esCategoriaSeleccionada(categoria._id) ? 'pi pi-circle-on me-1' : 'pi pi-circle-off me-1'"
+            class="m-2 cursor-pointer" [severity]="esCategoriaSeleccionada(categoria._id) ? 'success' : 'secondary'"
+            [value]="categoria.descripcion" (click)="seleccionarCategoria(categoria._id)" />
+        }
+    </div>
+
     <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        @for (producto of productosFiltrados(); track producto._id) {
+        @for (producto of productosFiltrados() | paginate:currentPage:pageSize; track producto._id) {
         <div class="mb-4 flex items-center justify-center">
             <p-card [style]="{ width: '100%', overflow: 'hidden' }">
                 <ng-template pTemplate="header">
-                    <img alt="Card" class="w-full" [src]="producto.galeria[0]" [alt]="producto.nombre" />
+                    <app-skeleton-image [src]="producto.galeria[0]" [alt]="producto.nombre" aspectRatio="4:3"
+                        objectFit="contain"></app-skeleton-image>
                 </ng-template>
                 <ng-template pTemplate="title"> <small>{{producto.codigo | uppercase}}-{{producto.nombre}}</small>
                 </ng-template>
@@ -80,6 +104,8 @@
         </div>
         }
     </div>
+
+    <app-pagination [currentPage]="currentPage" [totalPages]="totalPages" (pageChange)="onPageChange($event)" />
     }
 
     <div class="flex justify-center">

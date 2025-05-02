@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit, signal, PLATFORM_ID, Inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit, signal, PLATFORM_ID, Inject, computed, effect } from '@angular/core';
 import { ProductService } from '../../services/product.service';
 import { Producto } from '../../interfaces/producto.interfaces';
 import { CardModule } from 'primeng/card';
@@ -7,11 +7,19 @@ import { CurrencyPipe, SlicePipe, UpperCasePipe, DOCUMENT, isPlatformBrowser } f
 import { SkeletonModule } from 'primeng/skeleton';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { InputTextModule } from 'primeng/inputtext';
 import { FormsModule } from '@angular/forms';
 import { FloatLabel } from 'primeng/floatlabel';
 import { Meta, Title } from '@angular/platform-browser';
+import { environment } from '../../../environments/environment';
+import { Categoria } from '../../interfaces';
+import { Tag } from 'primeng/tag';
+import { CategoriaFilterService } from '../../services/categoria-filter.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { SkeletonImageComponent } from "../../ui/skeletonImage/skeletonImage.component";
+import { PaginationComponent } from '../../ui/pagination/pagination.component';
+import { PaginatePipe } from '../../pipes/paginate.pipe';
 
 @Component({
   selector: 'app-products',
@@ -26,7 +34,11 @@ import { Meta, Title } from '@angular/platform-browser';
     RouterLink,
     FormsModule,
     InputTextModule,
-    FloatLabel
+    FloatLabel,
+    Tag,
+    SkeletonImageComponent,
+    PaginationComponent,
+    PaginatePipe
   ],
   providers: [MessageService],
   templateUrl: './products.component.html',
@@ -39,23 +51,66 @@ export default class ProductsComponent implements OnInit, OnDestroy {
   private metaService = inject(Meta);
   private titleService = inject(Title);
   private document = inject(DOCUMENT);
+  private categoriaFilterService = inject(CategoriaFilterService);
+  private route = inject(ActivatedRoute);
 
   // Inject PLATFORM_ID to check if we're running in browser or server
   private platformId = inject(PLATFORM_ID);
 
-  id_marca = '671ac5cdc9c80b4d0388d787';
+  id_marca = environment.idMarca;;
 
   // Usar señales para los estados
   productos = signal<Producto[]>([]);
   productosFiltrados = signal<Producto[]>([]);
+  categorias = signal<Categoria[]>([]);
   cargando = signal(true);
   placeholderItems = signal([1, 2, 3, 4, 5, 6]);
 
   value: string = '';
+  categorias_select = signal<string[]>([]);
+  categoriasSeleccionadasCount = computed(() => this.categorias_select().length);
+
+  currentPage = 1;
+  pageSize = 6;
+
+  constructor() {
+    // Efecto para actualizar los productos filtrados cuando cambian las categorías seleccionadas
+    effect(() => {
+      this.filtrarProductos();
+    });
+
+    // Suscribirse a cambios en las categorías seleccionadas desde el servicio
+    this.categoriaFilterService.categoriaSeleccionada$
+      .pipe(takeUntilDestroyed())
+      .subscribe(categorias => {
+        if (categorias.length > 0) {
+          this.categorias_select.set(categorias);
+        }
+      });
+  }
 
   ngOnInit(): void {
     this.cargarProductos();
+
+    this.route.queryParams.subscribe(params => {
+      if (params['categoria']) {
+        // Si hay un ID de categoría en la URL, establecerlo como seleccionado
+        this.categoriaFilterService.setCategoria(params['categoria']);
+      }
+    });
+
+    this.cargarCategorias();
     this.updateMetaTags();
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.productos().length / this.pageSize);
+  }
+
+  // Navigation
+  onPageChange(page: number): void {
+    window.scrollTo({ top: 10, behavior: 'smooth' });
+    this.currentPage = page;
   }
 
   // Método para actualizar meta tags para un producto específico (para usar en página de detalle)
@@ -158,7 +213,7 @@ export default class ProductsComponent implements OnInit, OnDestroy {
     } else {
       // For server rendering, provide a fallback URL or use request info if available
       // This is a simple fallback, you might want to inject a more sophisticated solution
-      return 'https://yourdomain.com/productos';
+      return 'https://eprovet.com/productos';
     }
   }
 
@@ -168,7 +223,7 @@ export default class ProductsComponent implements OnInit, OnDestroy {
       return window.location.origin;
     } else {
       // For server rendering, provide a fallback
-      return 'https://yourdomain.com';
+      return 'https://eprovet.com';
     }
   }
 
@@ -195,7 +250,7 @@ export default class ProductsComponent implements OnInit, OnDestroy {
           'description': producto.descripcion,
           'sku': producto.codigo,
           'image': producto.galeria && producto.galeria.length > 0 ? producto.galeria[0] : undefined,
-          'url': `${this.getOrigin()}/producto/${producto.slug || producto._id}`
+          'url': `${this.getOrigin()}/product/${producto.slug || producto._id}`
         }
       };
     });
@@ -231,6 +286,71 @@ export default class ProductsComponent implements OnInit, OnDestroy {
         this.cargando.set(false);
       }
     });
+  }
+
+  esCategoriaSeleccionada(id_categoria: string): boolean {
+    return this.categorias_select().includes(id_categoria);
+  }
+
+  cargarCategorias(): void {
+    this.productService.obtener_categorias(this.id_marca).subscribe({
+      next: (res) => {
+        this.categorias.set(res.data);
+      },
+      error: (err) => {
+        this.categorias.set([]);
+      }
+    });
+  }
+
+  seleccionarCategoria(id_categoria: string): void {
+    // Obtener array actual de categorías seleccionadas
+    const categoriasActuales = [...this.categorias_select()];
+
+    // Verificar si la categoría ya está seleccionada
+    const indice = categoriasActuales.indexOf(id_categoria);
+
+    if (indice >= 0) {
+      // Si ya está seleccionada, la quitamos
+      categoriasActuales.splice(indice, 1);
+    } else {
+      // Si no está seleccionada, la agregamos
+      categoriasActuales.push(id_categoria);
+    }
+
+    // Actualizar la señal de categorías seleccionadas
+    this.categorias_select.set(categoriasActuales);
+    this.categoriaFilterService.setCategorias(categoriasActuales);
+
+    // Filtrar productos
+    this.filtrarProductos();
+  }
+
+  seleccionarTodas(): void {
+    // Limpiar categorías seleccionadas
+    this.categorias_select.set([]);
+
+    // Mostrar todos los productos
+    this.productosFiltrados.set(this.productos());
+    this.categoriaFilterService.clearCategorias();
+  }
+
+  filtrarProductos(): void {
+    const categoriasSeleccionadas = this.categorias_select();
+
+    // Si no hay categorías seleccionadas, mostrar todos los productos
+    if (categoriasSeleccionadas.length === 0) {
+      this.productosFiltrados.set(this.productos());
+      return;
+    }
+
+    // Filtrar productos por categorías seleccionadas
+    const productosFiltrados = this.productos().filter(producto =>
+      categoriasSeleccionadas.includes(producto.id_categoria)
+    );
+
+    // Actualizar la señal de productos filtrados
+    this.productosFiltrados.set(productosFiltrados);
   }
 
   buscarProducto(): void {
