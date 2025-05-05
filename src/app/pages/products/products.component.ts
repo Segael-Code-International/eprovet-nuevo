@@ -57,7 +57,7 @@ export default class ProductsComponent implements OnInit, OnDestroy {
   // Inject PLATFORM_ID to check if we're running in browser or server
   private platformId = inject(PLATFORM_ID);
 
-  id_marca = environment.idMarca;;
+  id_marca = environment.idMarca;
 
   // Usar señales para los estados
   productos = signal<Producto[]>([]);
