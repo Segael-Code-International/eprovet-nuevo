@@ -64,9 +64,9 @@
                             <h1 class="text-3xl font-bold mb-2">{{producto.nombre}}</h1>
                             <h2 class="text-lg text-600 mb-4">Código: {{producto.codigo}}</h2>
 
-                            <div class="text-2xl font-bold text-primary mb-4">
+                            <!-- <div class="text-2xl font-bold text-primary mb-4">
                                 {{producto.precio | currency:'S/ '}}
-                            </div>
+                            </div> -->
 
                             <div class="flex mb-4">
                                 <span class="mr-3" pTooltip="Garantía">
@@ -83,14 +83,14 @@
                             </div>
 
                             <div class="mt-4">
-                                <a href="https://agroplus.com.pe" target="_blank">
+                                <!-- <a href="https://agroplus.com.pe" target="_blank">
                                     <p-button label="Ver en Agro+" icon="pi pi-shopping-cart" severity="success"
                                         styleClass="mr-2" />
-                                </a>
+                                </a> -->
 
                                 @if (producto.ficha_tecnica) {
                                 <a [href]="producto.ficha_tecnica" target="_blank">
-                                    <p-button label="Ficha técnica" icon="pi pi-cloud-download" variant="outlined"
+                                    <p-button label="Descargar ficha técnica" icon="pi pi-cloud-download" variant="outlined"
                                         severity="contrast" />
                                 </a>
                                 }
