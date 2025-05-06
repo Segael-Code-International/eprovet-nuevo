@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit, signal, PLATFORM_ID, Inject, computed, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit, signal, PLATFORM_ID, computed, effect } from '@angular/core';
 import { ProductService } from '../../services/product.service';
 import { Producto } from '../../interfaces/producto.interfaces';
 import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
-import { CurrencyPipe, SlicePipe, UpperCasePipe, DOCUMENT, isPlatformBrowser } from '@angular/common';
+import { SlicePipe, UpperCasePipe, DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { SkeletonModule } from 'primeng/skeleton';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
@@ -20,6 +20,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SkeletonImageComponent } from "../../ui/skeletonImage/skeletonImage.component";
 import { PaginationComponent } from '../../ui/pagination/pagination.component';
 import { PaginatePipe } from '../../pipes/paginate.pipe';
+import { Subject, takeUntil } from 'rxjs';
 
 @Component({
   selector: 'app-products',
@@ -29,7 +30,6 @@ import { PaginatePipe } from '../../pipes/paginate.pipe';
     SkeletonModule,
     UpperCasePipe,
     SlicePipe,
-    CurrencyPipe,
     ToastModule,
     RouterLink,
     FormsModule,
@@ -53,13 +53,14 @@ export default class ProductsComponent implements OnInit, OnDestroy {
   private document = inject(DOCUMENT);
   private categoriaFilterService = inject(CategoriaFilterService);
   private route = inject(ActivatedRoute);
-
-  // Inject PLATFORM_ID to check if we're running in browser or server
   private platformId = inject(PLATFORM_ID);
+  
+  // Para gestionar desuscripciones manualmente (además de takeUntilDestroyed)
+  private destroy$ = new Subject<void>();
 
   id_marca = environment.idMarca;
 
-  // Usar señales para los estados
+  // Señales para los estados
   productos = signal<Producto[]>([]);
   productosFiltrados = signal<Producto[]>([]);
   categorias = signal<Categoria[]>([]);
@@ -90,17 +91,24 @@ export default class ProductsComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Cargar productos utilizando el servicio optimizado
     this.cargarProductos();
 
-    this.route.queryParams.subscribe(params => {
-      if (params['categoria']) {
-        // Si hay un ID de categoría en la URL, establecerlo como seleccionado
-        this.categoriaFilterService.setCategoria(params['categoria']);
-        this.currentPage = 1;
-      }
-    });
+    // Gestionar parámetros de URL para filtrado por categoría
+    this.route.queryParams
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(params => {
+        if (params['categoria']) {
+          // Si hay un ID de categoría en la URL, establecerlo como seleccionado
+          this.categoriaFilterService.setCategoria(params['categoria']);
+          this.currentPage = 1;
+        }
+      });
 
+    // Cargar categorías
     this.cargarCategorias();
+    
+    // Actualizar meta tags para SEO
     this.updateMetaTags();
   }
 
@@ -108,10 +116,222 @@ export default class ProductsComponent implements OnInit, OnDestroy {
     return Math.ceil(this.productosFiltrados().length / this.pageSize);
   }
 
-  // Navigation
   onPageChange(page: number): void {
-    window.scrollTo({ top: 10, behavior: 'smooth' });
+    if (isPlatformBrowser(this.platformId)) {
+      window.scrollTo({ top: 10, behavior: 'smooth' });
+    }
     this.currentPage = page;
+  }
+
+  cargarProductos(): void {
+    this.cargando.set(true);
+    
+    this.productService.obtener_productos(this.id_marca)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          // Cuando recibimos los datos, actualizamos ambas señales
+          this.productos.set(res.data);
+          
+          // Aplicamos filtros si hay categorías seleccionadas, 
+          // de lo contrario inicializamos con todos los productos
+          if (this.categorias_select().length > 0) {
+            this.filtrarProductos();
+          } else {
+            this.productosFiltrados.set(res.data);
+          }
+          
+          this.cargando.set(false);
+          
+          // Actualizar los metadatos con la información de productos para SEO
+          this.updateMetaTags();
+          
+          // Si estamos en el navegador, actualizar los esquemas de datos estructurados
+          if (isPlatformBrowser(this.platformId)) {
+            this.addProductListSchema();
+          }
+        },
+        error: (err) => {
+          console.error('Error al cargar productos:', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudieron cargar los productos'
+          });
+          this.cargando.set(false);
+        }
+      });
+  }
+
+  cargarCategorias(): void {
+    this.productService.obtener_categorias(this.id_marca)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.categorias.set(res.data);
+        },
+        error: (err) => {
+          console.error('Error al cargar categorías:', err);
+          this.categorias.set([]);
+        }
+      });
+  }
+
+  esCategoriaSeleccionada(id_categoria: string): boolean {
+    return this.categorias_select().includes(id_categoria);
+  }
+
+  seleccionarCategoria(id_categoria: string): void {
+    // Obtener array actual de categorías seleccionadas
+    this.currentPage = 1;
+    const categoriasActuales = [...this.categorias_select()];
+
+    // Verificar si la categoría ya está seleccionada
+    const indice = categoriasActuales.indexOf(id_categoria);
+
+    if (indice >= 0) {
+      // Si ya está seleccionada, la quitamos
+      categoriasActuales.splice(indice, 1);
+    } else {
+      // Si no está seleccionada, la agregamos
+      categoriasActuales.push(id_categoria);
+    }
+
+    // Actualizar la señal de categorías seleccionadas
+    this.categorias_select.set(categoriasActuales);
+    
+    // Sincronizar con el servicio de filtrado de categorías
+    this.categoriaFilterService.setCategorias(categoriasActuales);
+    
+    // El filtrado se ejecutará automáticamente mediante el efecto
+  }
+
+  seleccionarTodas(): void {
+    // Limpiar categorías seleccionadas
+    this.currentPage = 1;
+    this.categorias_select.set([]);
+    
+    // Sincronizar con el servicio
+    this.categoriaFilterService.clearCategorias();
+    
+    // Mostrar todos los productos (el efecto se encargará de esto)
+  }
+
+  filtrarProductos(): void {
+    const categoriasSeleccionadas = this.categorias_select();
+    const productosActuales = this.productos();
+
+    // Si no hay categorías seleccionadas, mostrar todos los productos
+    if (categoriasSeleccionadas.length === 0) {
+      this.productosFiltrados.set(productosActuales);
+      return;
+    }
+
+    // Filtrar productos por categorías seleccionadas
+    const productosFiltrados = productosActuales.filter(producto =>
+      categoriasSeleccionadas.includes(producto.id_categoria)
+    );
+
+    // Actualizar la señal de productos filtrados
+    this.productosFiltrados.set(productosFiltrados);
+    
+    // Si estamos filtrando y no hay resultados, mostrar un mensaje
+    if (productosFiltrados.length === 0 && !this.cargando()) {
+      this.messageService.add({
+        severity: 'info',
+        summary: 'Filtro',
+        detail: 'No hay productos en las categorías seleccionadas'
+      });
+    }
+  }
+
+  buscarProducto(): void {
+    if (!this.value || this.value.trim() === '') {
+      // Si no hay texto de búsqueda, aplicar solo el filtro de categorías
+      this.filtrarProductos();
+      return;
+    }
+
+    const busqueda = this.value.toLowerCase().trim();
+    const productosBase = this.productos();
+    
+    // Primero aplicamos el filtro de categorías si hay alguna seleccionada
+    let baseParaBusqueda = productosBase;
+    const categoriasSeleccionadas = this.categorias_select();
+    
+    if (categoriasSeleccionadas.length > 0) {
+      baseParaBusqueda = productosBase.filter(producto => 
+        categoriasSeleccionadas.includes(producto.id_categoria)
+      );
+    }
+
+    // Luego filtramos por término de búsqueda
+    const filtrados = baseParaBusqueda.filter(producto =>
+      producto.codigo.toLowerCase().includes(busqueda) ||
+      producto.nombre.toLowerCase().includes(busqueda)
+    );
+
+    this.productosFiltrados.set(filtrados);
+    this.currentPage = 1; // Reiniciar a la primera página en búsquedas
+
+    // Mostrar mensaje si no hay resultados
+    if (filtrados.length === 0 && !this.cargando()) {
+      this.messageService.add({
+        severity: 'info',
+        summary: 'Búsqueda',
+        detail: 'No se encontraron productos para tu búsqueda'
+      });
+    }
+  }
+
+  onInputChange(): void {
+    this.buscarProducto();
+  }
+
+  // Método para actualizar meta tags para SEO
+  private updateMetaTags(): void {
+    // Título general de la página
+    this.titleService.setTitle(`Eprovet | Catálogo de Productos`);
+
+    // Obtenemos los nombres de los productos para keywords si hay productos cargados
+    let productNames = '';
+    const productosActuales = this.productos();
+    if (productosActuales.length > 0) {
+      // Extraer los primeros 5 nombres de productos para keywords
+      productNames = productosActuales
+        .slice(0, 5)
+        .map(p => p.nombre)
+        .join(', ');
+    }
+
+    // Meta tags para SEO
+    this.metaService.updateTag({ name: 'description', content: 'Catálogo de productos veterinarios de alta calidad. Encuentra medicamentos, equipos y suministros para el cuidado animal.' });
+    this.metaService.updateTag({ property: 'og:title', content: 'Eprovet | Productos Veterinarios' });
+    this.metaService.updateTag({ property: 'og:description', content: 'Explora nuestra selección de productos veterinarios. Calidad y confianza para el cuidado de animales.' });
+
+    // URL canónica para evitar contenido duplicado - acceder a URL de forma segura
+    const currentUrl = this.getAbsoluteUrl();
+    this.metaService.updateTag({ rel: 'canonical', href: currentUrl });
+    this.metaService.updateTag({ property: 'og:url', content: currentUrl });
+
+    // Si hay productos con imágenes, usar la primera imagen disponible para og:image
+    if (productosActuales.length > 0 && productosActuales[0].galeria && productosActuales[0].galeria.length > 0) {
+      this.metaService.updateTag({ property: 'og:image', content: productosActuales[0].galeria[0] });
+    }
+
+    // Metadatos adicionales
+    this.metaService.updateTag({ property: 'og:type', content: 'website' });
+    this.metaService.updateTag({ property: 'og:site_name', content: 'Eprovet' });
+    this.metaService.updateTag({ name: 'keywords', content: `productos veterinarios, suministros veterinarios, ${productNames}` });
+    this.metaService.updateTag({ name: 'robots', content: 'index, follow' });
+
+    // Twitter Card
+    this.metaService.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+    this.metaService.updateTag({ name: 'twitter:title', content: 'Eprovet | Productos Veterinarios' });
+    this.metaService.updateTag({ name: 'twitter:description', content: 'Explora nuestra amplia selección de productos veterinarios de calidad' });
+
+    // Meta tags para móviles
+    this.metaService.updateTag({ name: 'viewport', content: 'width=device-width, initial-scale=1' });
   }
 
   // Método para actualizar meta tags para un producto específico (para usar en página de detalle)
@@ -157,64 +377,12 @@ export default class ProductsComponent implements OnInit, OnDestroy {
     }
   }
 
-  private updateMetaTags(): void {
-    // Título general de la página
-    this.titleService.setTitle(`Eprovet | Catálogo de Productos`);
-
-    // Obtenemos los nombres de los productos para keywords si hay productos cargados
-    let productNames = '';
-    const productosActuales = this.productos();
-    if (productosActuales.length > 0) {
-      // Extraer los primeros 5 nombres de productos para keywords
-      productNames = productosActuales
-        .slice(0, 5)
-        .map(p => p.nombre)
-        .join(', ');
-    }
-
-    // Meta tags para SEO
-    this.metaService.updateTag({ name: 'description', content: 'Catálogo de productos veterinarios de alta calidad. Encuentra medicamentos, equipos y suministros para el cuidado animal.' });
-    this.metaService.updateTag({ property: 'og:title', content: 'Eprovet | Productos Veterinarios' });
-    this.metaService.updateTag({ property: 'og:description', content: 'Explora nuestra selección de productos veterinarios. Calidad y confianza para el cuidado de animales.' });
-
-    // URL canónica para evitar contenido duplicado - acceder a URL de forma segura
-    const currentUrl = this.getAbsoluteUrl();
-    this.metaService.updateTag({ rel: 'canonical', href: currentUrl });
-    this.metaService.updateTag({ property: 'og:url', content: currentUrl });
-
-    // Si hay productos con imágenes, usar la primera imagen disponible para og:image
-    if (productosActuales.length > 0 && productosActuales[0].galeria && productosActuales[0].galeria.length > 0) {
-      this.metaService.updateTag({ property: 'og:image', content: productosActuales[0].galeria[0] });
-    }
-
-    // Metadatos adicionales
-    this.metaService.updateTag({ property: 'og:type', content: 'website' });
-    this.metaService.updateTag({ property: 'og:site_name', content: 'Eprovet' });
-    this.metaService.updateTag({ name: 'keywords', content: `productos veterinarios, suministros veterinarios, ${productNames}` });
-    this.metaService.updateTag({ name: 'robots', content: 'index, follow' });
-
-    // Twitter Card
-    this.metaService.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
-    this.metaService.updateTag({ name: 'twitter:title', content: 'Eprovet | Productos Veterinarios' });
-    this.metaService.updateTag({ name: 'twitter:description', content: 'Explora nuestra amplia selección de productos veterinarios de calidad' });
-
-    // Meta tags para móviles
-    this.metaService.updateTag({ name: 'viewport', content: 'width=device-width, initial-scale=1' });
-
-    // Agregamos también datos estructurados para la lista de productos (ItemList) - solo en navegador
-    if (isPlatformBrowser(this.platformId)) {
-      this.addProductListSchema();
-    }
-  }
-
   // Helper method to get the absolute URL safely (works in browser and server)
   private getAbsoluteUrl(): string {
     if (isPlatformBrowser(this.platformId)) {
       return window.location.href;
     } else {
-      // For server rendering, provide a fallback URL or use request info if available
-      // This is a simple fallback, you might want to inject a more sophisticated solution
-      return 'https://eprovet.com/productos';
+      return 'https://eprovet.com/products';
     }
   }
 
@@ -271,118 +439,6 @@ export default class ProductsComponent implements OnInit, OnDestroy {
     this.document.head.appendChild(script);
   }
 
-  cargarProductos(): void {
-    this.productService.obtener_productos(this.id_marca).subscribe({
-      next: (res) => {
-        this.productos.set(res.data);
-        this.productosFiltrados.set(res.data);
-        this.cargando.set(false);
-      },
-      error: (err) => {
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: 'No se pudieron cargar los productos'
-        });
-        this.cargando.set(false);
-      }
-    });
-  }
-
-  esCategoriaSeleccionada(id_categoria: string): boolean {
-    return this.categorias_select().includes(id_categoria);
-  }
-
-  cargarCategorias(): void {
-    this.productService.obtener_categorias(this.id_marca).subscribe({
-      next: (res) => {
-        this.categorias.set(res.data);
-      },
-      error: (err) => {
-        this.categorias.set([]);
-      }
-    });
-  }
-
-  seleccionarCategoria(id_categoria: string): void {
-    // Obtener array actual de categorías seleccionadas
-    this.currentPage = 1;
-    const categoriasActuales = [...this.categorias_select()];
-
-    // Verificar si la categoría ya está seleccionada
-    const indice = categoriasActuales.indexOf(id_categoria);
-
-    if (indice >= 0) {
-      // Si ya está seleccionada, la quitamos
-      categoriasActuales.splice(indice, 1);
-    } else {
-      // Si no está seleccionada, la agregamos
-      categoriasActuales.push(id_categoria);
-    }
-
-    // Actualizar la señal de categorías seleccionadas
-    this.categorias_select.set(categoriasActuales);
-    this.categoriaFilterService.setCategorias(categoriasActuales);
-
-    // Filtrar productos
-    this.filtrarProductos();
-  }
-
-  seleccionarTodas(): void {
-    // Limpiar categorías seleccionadas
-    this.currentPage = 1;
-    this.categorias_select.set([]);
-
-    // Mostrar todos los productos
-    this.productosFiltrados.set(this.productos());
-    this.categoriaFilterService.clearCategorias();
-  }
-
-  filtrarProductos(): void {
-    const categoriasSeleccionadas = this.categorias_select();
-
-    // Si no hay categorías seleccionadas, mostrar todos los productos
-    if (categoriasSeleccionadas.length === 0) {
-      this.productosFiltrados.set(this.productos());
-      return;
-    }
-
-    // Filtrar productos por categorías seleccionadas
-    const productosFiltrados = this.productos().filter(producto =>
-      categoriasSeleccionadas.includes(producto.id_categoria)
-    );
-
-    // Actualizar la señal de productos filtrados
-    this.productosFiltrados.set(productosFiltrados);
-  }
-
-  buscarProducto(): void {
-    if (!this.value || this.value.trim() === '') {
-      // Si no hay texto de búsqueda, mostrar todos los productos
-      this.productosFiltrados.set(this.productos());
-      return;
-    }
-
-    const busqueda = this.value.toLowerCase().trim();
-
-    // Filtrar productos que coincidan por código o nombre
-    const filtrados = this.productos().filter(producto =>
-      producto.codigo.toLowerCase().includes(busqueda) ||
-      producto.nombre.toLowerCase().includes(busqueda)
-    );
-
-    this.productosFiltrados.set(filtrados);
-
-    // Opcional: Mostrar mensaje si no hay resultados
-    if (filtrados.length === 0 && !this.cargando()) {
-      this.messageService.add({
-        severity: 'info',
-        summary: 'Búsqueda',
-        detail: 'No se encontraron productos para tu búsqueda'
-      });
-    }
-  }
-
   // Método para agregar datos estructurados Schema.org para productos
   private addProductSchema(producto: Producto): void {
     // Esta función solo debe ejecutarse en el navegador
@@ -436,12 +492,11 @@ export default class ProductsComponent implements OnInit, OnDestroy {
     existingScripts.forEach(script => script.remove());
   }
 
-  // Método para manejar cambios en el input (puedes usar este en lugar de ngModelChange)
-  onInputChange(): void {
-    this.buscarProducto();
-  }
-
   ngOnDestroy(): void {
+    // Completar el Subject para limpiar suscripciones
+    this.destroy$.next();
+    this.destroy$.complete();
+    
     // Limpiar los scripts de ld+json cuando el componente se destruye - solo en navegador
     if (isPlatformBrowser(this.platformId)) {
       this.removeExistingLdJson();
