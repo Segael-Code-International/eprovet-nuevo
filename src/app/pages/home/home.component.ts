@@ -7,17 +7,21 @@ import { Categoria } from '../../interfaces/categoria.interface';
 import { ProductService } from '../../services/product.service';
 import { environment } from '../../../environments/environment';
 import { CategoriaFilterService } from '../../services/categoria-filter.service';
-import { Subscription, fromEvent, debounceTime, filter, interval, takeWhile } from 'rxjs';
+import { Subscription, fromEvent, filter, interval, takeWhile } from 'rxjs';
 import { isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
+import { Carousel } from 'primeng/carousel';
+import { Producto } from '../../interfaces';
 
 @Component({
   selector: 'app-home',
   imports: [
     ButtonModule,
     RouterLink,
-    Chip
+    Chip,
+    Carousel
   ],
+  providers: [ProductService],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -37,6 +41,9 @@ export default class HomeComponent implements OnInit, OnDestroy {
   private refreshInterval?: Subscription;
   private isVisible = true;
   private componentActive = true;
+
+  products: Producto[] = [];
+  responsiveOptions: any[] | undefined;
 
   constructor(
     private meta: Meta,
@@ -72,6 +79,37 @@ export default class HomeComponent implements OnInit, OnDestroy {
       this.setupVisibilityTracking();
       this.setupRefreshInterval();
     }
+
+    this.productService.obtener_productos(this.id_marca).subscribe(
+      {
+        next: (res) => {
+          this.products = res.data.slice(0, 12);
+        }
+      }
+    );
+
+    this.responsiveOptions = [
+      {
+        breakpoint: '1400px',
+        numVisible: 3,
+        numScroll: 1
+      },
+      {
+        breakpoint: '1199px',
+        numVisible: 4,
+        numScroll: 1
+      },
+      {
+        breakpoint: '767px',
+        numVisible: 2,
+        numScroll: 1
+      },
+      {
+        breakpoint: '575px',
+        numVisible: 1,
+        numScroll: 1
+      }
+    ]
   }
 
   ngOnDestroy(): void {

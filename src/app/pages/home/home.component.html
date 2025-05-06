@@ -1,10 +1,10 @@
 <!-- Hero Section con estructura semántica optimizada para SEO -->
 <main>
-    <section class="relative bg-bottom h-screen" style="background-image: url('../../../assets/images/hero.jpg');"
+    <section class="relative bg-bottom h-screen" style="background-image: url('../../../assets/images/hero.webp');"
         aria-label="Banner principal de EPROVET">
         <div class="absolute inset-0 flex items-center justify-center text-center">
-            <div class="px-6 lg:px-6">
-                <article class="mx-auto max-w-3xl sm:pt-12 sm:pb-12">
+            <div class="px-2 lg:px-6">
+                <article class="mx-auto max-w-3xl pb-6">
                     <div class="bg-gray-100/50 backdrop-filter backdrop-blur-md py-8 px-4 rounded-xl shadow-lg">
                         <h1 class="text-3xl font-bold text-red-500">
                             ¡Bienvenido a EPROVET!
@@ -12,33 +12,70 @@
                         <h2 class="mt-4 text-xl font-semibold text-gray-800">
                             Soluciones Innovadoras para el Sector Agrícola y Ganadero
                         </h2>
-                        <p class="mt-6 text-lg leading-8 sm:text-center text-gray-900">
-                            Transforma tu <strong>operación agrícola y ganadera</strong> con la <em>vanguardia
-                                tecnológica</em>. Desde <strong>picadoras de última generación</strong> hasta
-                            <strong>sistemas de ordeño de precisión</strong> y <strong>productos veterinarios de
-                                élite</strong>, estamos aquí para llevar tus resultados al máximo nivel.
-                        </p>
+
                         <div class="mt-8 flex gap-x-4 justify-center content-center">
-                            <p-button label="Ver catálogo de productos" icon="pi pi-arrow-right" size="large"
+                            <p-button label="Ver catálogo de productos" icon="pi pi-arrow-right"
                                 iconPos="right" [routerLink]="['/products']"
                                 aria-label="Explorar catálogo de productos agropecuarios" />
                         </div>
                     </div>
                 </article>
 
-                <article class="mx-auto max-w-3xl mt-6">
-                    <div class="bg-gray-100/50 backdrop-filter backdrop-blur-md py-8 px-4 rounded-xl shadow-lg">
-                        <h1 class="text-2xl font-bold text-red-500">
-                            Nuestras categorías
-                        </h1>
-                        <div class="mt-6">
+                <article class="mx-auto my-2">
+                    <div class="hidden lg:inline">
+                        <div class="flex flex-wrap justify-center">
                             @for (categoria of categorias(); track categoria._id) {
-                                <p-chip [label]="categoria.descripcion" class="m-1 cursor-pointer border border-white hover:border-red-500"
-                                    [image]="categoria.icono"
-                                    [alt]="categoria.descripcion" 
-                                    (click) = "selectCategoria(categoria._id)"
-                                    />
+                            <div class="flex flex-col items-center p-2 m-2 rounded-lg shadow-md border 
+                                     border-gray-200 hover:border-red-500 hover:shadow-lg cursor-pointer 
+                                     bg-gray-100/50 backdrop-filter backdrop-blur-md  w-auto"
+                                (click)="selectCategoria(categoria._id)">
+                                <!-- Contenedor de la imagen -->
+                                <div class="w-16 h-16 mb-2 flex items-center justify-center">
+                                    <img [src]="categoria.icono" [alt]="categoria.descripcion"
+                                        class="max-w-full max-h-full object-contain rounded" />
+                                </div>
+                                <!-- Texto de la categoría -->
+                                <p class="text-center font-medium text-sm text-gray-800"> {{categoria.descripcion}} </p>
+                            </div>
                             }
+                        </div>
+                    </div>
+
+                    <div class="inline lg:hidden">
+                        @for (categoria of categorias(); track categoria._id) {
+                        <p-chip [label]="categoria.descripcion"
+                            class="m-1 cursor-pointer border border-white hover:border-red-500"
+                            [image]="categoria.icono" [alt]="categoria.descripcion"
+                            (click)="selectCategoria(categoria._id)" />
+                        }
+                    </div>
+                </article>
+
+                <article class="mx-auto max-w-96 lg:max-w-4xl pt-6">
+                    <div class="">
+                        <div class="card">
+                            <p-carousel [value]="products" [numVisible]="3" [numScroll]="3" [circular]="true"
+                                [responsiveOptions]="responsiveOptions" autoplayInterval="3000">
+                                <ng-template let-product #item>
+                                    <div class="border border-white hover:border-red-500 rounded m-2 p-4 
+                                    bg-gray-100/50 backdrop-filter backdrop-blur-md cursor-pointer"
+                                    [routerLink]="['/products', product.slug]">
+                                        <div class="mb-4">
+                                            <div class="relative mx-auto">
+                                                <img [src]="product.galeria[0]"
+                                                    [alt]="product.nombre" class="rounded-border" />
+                                            </div>
+                                        </div>
+                                        <div class="mb-4 font-medium">{{ product.name }}</div>
+                                        <div class="flex justify-between items-center">
+                                            <div class="mt-0 font-medium text-gray-800 text-sm">Ver detalles</div>
+                                            <span>
+                                                <p-button icon="pi pi-arrow-right" styleClass="ml-2" />
+                                            </span>
+                                        </div>
+                                    </div>
+                                </ng-template>
+                            </p-carousel>
                         </div>
                     </div>
                 </article>
